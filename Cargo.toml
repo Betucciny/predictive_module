@@ -1,0 +1,21 @@
+[package]
+name = "predictive_module"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4" # Web server framework
+tokio = { version = "1", features = [
+    "full",
+] } # Async runtime with full features
+sqlx = { version = "0.7", features = [
+    "runtime-tokio-native-tls",
+    "mssql",
+    "macros",
+] } # SQL Server support
+serde = { version = "1.0", features = [
+    "derive",
+] } # Serialization/deserialization
+serde_json = "1.0" # JSON handling
+tokio-cron-scheduler = "0.5" # For scheduling cron jobs
+dotenv = "0.15"
