@@ -3,19 +3,37 @@ name = "predictive_module"
 version = "0.1.0"
 edition = "2021"
 
+# Dependencies
 [dependencies]
-actix-web = "4" # Web server framework
-tokio = { version = "1", features = [
-    "full",
-] } # Async runtime with full features
-sqlx = { version = "0.7", features = [
-    "runtime-tokio-native-tls",
-    "mssql",
-    "macros",
-] } # SQL Server support
-serde = { version = "1.0", features = [
-    "derive",
-] } # Serialization/deserialization
-serde_json = "1.0" # JSON handling
-tokio-cron-scheduler = "0.5" # For scheduling cron jobs
-dotenv = "0.15"
+# For SQL Server database connections
+tiberius = { version = "0.12.3", features = ["chrono", "tds73"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"                                                # Required for async I/O with `tiberius`
+dotenv = "0.15"                                                   # For environment variable management
+
+# ALS logic
+ndarray = "0.15" # For numerical operations
+rand = "0.8"     # For random initialization in ALS training
+
+# Async runtime and web framework
+warp = "0.3" # For creating the web server
+
+# Caching and synchronization
+tokio-cron-scheduler = "0.8" # For scheduled cron jobs
+tokio-sync = "0.1"           # For using Mutex and synchronization
+dashmap = "5.0"              # Alternative for concurrent caching (if needed)
+
+# Serde for JSON serialization/deserialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# For logging (optional but useful)
+env_logger = "0.10"
+log = "0.4"
+
+# Development dependencies
+[dev-dependencies]
+tokio-test = "0.4" # For async testing utilities
+
+[profile.release]
+opt-level = 3
