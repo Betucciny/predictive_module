@@ -1,5 +1,5 @@
 use crate::services::db::ClientProductMatrix;
-use ndarray::{Array1, Array2};
+use ndarray::Array2;
 use std::collections::HashMap;
 
 pub struct ALS {
@@ -18,7 +18,7 @@ impl ALS {
     }
 
     // Train the ALS model
-    pub fn fit(&self, matrix: &ClientProductMatrix) -> (Array1<f64>, Array2<f64>) {
+    pub fn fit(&self, matrix: &ClientProductMatrix) -> (Array2<f64>, Array2<f64>) {
         let num_clients = matrix.len();
         let num_products = matrix
             .values()
@@ -27,7 +27,7 @@ impl ALS {
             .len();
 
         // Initialize random client and product factors
-        let mut client_factors = Array1::<f64>::random((num_clients, self.num_factors), 0.0..1.0);
+        let mut client_factors = Array2::<f64>::random((num_clients, self.num_factors), 0.0..1.0);
         let mut product_factors = Array2::<f64>::random((num_products, self.num_factors), 0.0..1.0);
 
         for _ in 0..self.num_iterations {

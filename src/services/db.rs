@@ -1,21 +1,23 @@
-use async_trait::async_trait;
-use futures::TryStreamExt;
+use futures::stream::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
 use tiberius::{AuthMethod, Client, Config};
 use tokio::net::TcpStream;
-use tokio_util::compat::TokioAsyncWriteCompatExt; // Required for async compatibility with `tiberius`
+use tokio_util::compat::TokioAsyncWriteCompatExt; // Required for async compatibility with `tiberius` // Use TryStreamExt for try_next()
 
-pub type ClientProductMatrix = HashMap<String, HashMap<String, i32>>;
+// Type alias for a client-product matrix
+pub type ClientProductMatrix = HashMap<String, HashMap<String, f64>>;
 
 pub struct Database {
     client: Client<tokio_util::compat::Compat<TcpStream>>,
 }
 
 impl Database {
+    // Create a new instance of the Database and connect to the SQL Server
     pub async fn new() -> Self {
         dotenv::dotenv().ok(); // Load environment variables from .env file
 
+        // Create a new SQL Server configuration
         let mut config = Config::new();
         config.host(env::var("DB_HOST").expect("DB_HOST is not set"));
         config.port(
@@ -29,6 +31,9 @@ impl Database {
             env::var("DB_PASSWORD").expect("DB_PASSWORD is not set"),
         ));
         config.database(env::var("DB_NAME").expect("DB_NAME is not set"));
+
+        // Accept self-signed certificates
+        config.trust_cert(); // This line allows self-signed certificates
 
         // Establish the connection
         let tcp = TcpStream::connect(config.get_addr()).await.unwrap();
@@ -49,7 +54,10 @@ impl Database {
 
         // Get the excluded clients from the environment variable and convert to SQL-compatible format
         let excluded_clients_env = env::var("EXCLUDED_CLIENTS").unwrap_or_else(|_| "".to_string());
-        let excluded_clients: Vec<&str> = excluded_clients_env.split(',').collect();
+        let excluded_clients: Vec<String> = excluded_clients_env
+            .split(',')
+            .map(|s| format!("'{}'", s))
+            .collect();
         let excluded_clients_sql = if !excluded_clients.is_empty() {
             format!("AND F.CVE_CLPV NOT IN ({})", excluded_clients.join(","))
         } else {
@@ -67,25 +75,31 @@ impl Database {
                  INNER JOIN dbo.{} AS F ON C.CLAVE = F.CVE_CLPV
                             ON PF.CVE_DOC = F.CVE_DOC
             WHERE F.STATUS <> 'C'
-              AND C.NOMBRE NOT LIKE '%PUBLICO%'
+              AND C.NOMBRE NOT LIKE '%PUBLICO EN GENERAL%'
               {}
             GROUP BY F.CVE_CLPV, PF.CVE_ART;
             "#,
             table_par_fact, table_inve, table_client, table_fact, excluded_clients_sql
         );
+        println!("Query: {}", query);
 
+        // Execute the query
         let mut result = self.client.query(query, &[]).await?;
         let mut matrix: ClientProductMatrix = HashMap::new();
 
-        while let Some(row) = result.try_next().await? {
-            let client_id: String = row.get(0).unwrap();
-            let product_id: String = row.get(1).unwrap();
-            let total_quantity: i32 = row.get(2).unwrap();
+        // Process the query results and build the client-product matrix
+        while let Some(item) = result.try_next().await? {
+            if let Some(row) = item.into_row() {
+                // Extracting values from the row
+                let client_id: &str = row.get::<&str, _>(0).unwrap_or("unknown_client");
+                let product_id: &str = row.get::<&str, _>(1).unwrap_or("unknown_product");
+                let total_quantity: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
 
-            matrix
-                .entry(client_id)
-                .or_insert_with(HashMap::new)
-                .insert(product_id, total_quantity);
+                matrix
+                    .entry(client_id.to_string())
+                    .or_insert_with(HashMap::new)
+                    .insert(product_id.to_string(), total_quantity);
+            }
         }
 
         Ok(matrix)
