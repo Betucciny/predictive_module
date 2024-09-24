@@ -11,7 +11,9 @@ tiberius = { version = "0.12.3", features = ["chrono", "tds73"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7.12", features = ["compat"] }
 dotenv = "0.15"
-futures = "0.3"                                                   # Ensure the futures crate is included# For environment variable management
+futures = "0.3"
+rsfbclient = "0.3.0"
+# Ensure the futures crate is included# For environment variable management
 
 # ALS logic
 ndarray = "0.15" # For numerical operations

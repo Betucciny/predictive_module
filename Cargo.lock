@@ -188,7 +188,9 @@ checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
+ "wasm-bindgen",
  "windows-targets",
 ]
 
@@ -1047,6 +1049,7 @@ dependencies = [
  "log",
  "ndarray",
  "rand 0.8.5",
+ "rsfbclient",
  "serde",
  "serde_json",
  "tiberius",
@@ -1196,6 +1199,16 @@ name = "regex-syntax"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
+
+[[package]]
+name = "rsfbclient"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88812169cec6a9b065a1691e21f86b7aa247e39fedda3958efea21d9ffa0fe41"
+dependencies = [
+ "chrono",
+ "libc",
+]
 
 [[package]]
 name = "rustc-demangle"
