@@ -1,3 +1,4 @@
+use env_logger;
 use models::db::{Database, DatabaseTrait};
 use services::mssql::SqlServerDatabase;
 use std::sync::{Arc, Mutex};
@@ -20,7 +21,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut database = Database::new(db);
-    database.build_matrix().await?;
+    let matrix = database.build_matrix().await.unwrap();
+    log::info!("Matrix built successfully");
+    log::info!("{:?}", matrix);
 
     Ok(())
 }

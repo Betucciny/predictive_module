@@ -49,15 +49,28 @@ impl DatabaseTrait for SqlServerDatabase {
         let table_par_fact = env::var("TABLE_PAR_FACT").expect("TABLE_PAR_FACT is not set");
         let table_client = env::var("TABLE_CLIENT").expect("TABLE_CLIENT is not set");
 
+        let excluded_clients: Vec<String> = env::var("EXCLUDED_CLIENTS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| format!("'{}'", s.trim()))
+            .collect();
+
+        let excluded_clients_clause = if !excluded_clients.is_empty() {
+            format!("AND F.CVE_CLPV NOT IN ({})", excluded_clients.join(", "))
+        } else {
+            String::new()
+        };
+
         let query = format!(
-            "SELECT F.CVE_CLPV AS CLIENT_ID, PF.CVE_ART AS PRODUCT_ID, SUM(PF.CANT) AS TOTAL_QUANTITY
-             FROM dbo.{} AS PF
-             INNER JOIN dbo.{} AS I ON PF.CVE_ART = I.CVE_ART
-             INNER JOIN dbo.{} AS C INNER JOIN dbo.{} AS F ON C.CLAVE = F.CVE_CLPV
-             ON PF.CVE_DOC = F.CVE_DOC WHERE F.STATUS <> 'C'
-             AND C.NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' GROUP BY F.CVE_CLPV, PF.CVE_ART;",
-            table_par_fact, table_inve, table_client, table_fact
-        );
+                    "SELECT F.CVE_CLPV AS CLIENT_ID, PF.CVE_ART AS PRODUCT_ID, SUM(PF.CANT) AS TOTAL_QUANTITY
+                     FROM dbo.{} AS PF
+                     INNER JOIN dbo.{} AS I ON PF.CVE_ART = I.CVE_ART
+                     INNER JOIN dbo.{} AS C INNER JOIN dbo.{} AS F ON C.CLAVE = F.CVE_CLPV
+                     ON PF.CVE_DOC = F.CVE_DOC WHERE F.STATUS <> 'C'
+                     AND C.NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}
+                     GROUP BY F.CVE_CLPV, PF.CVE_ART;",
+                    table_par_fact, table_inve, table_client, table_fact, excluded_clients_clause
+                );
 
         let mut result = self.client.query(query, &[]).await?;
         let mut matrix: ClientProductMatrix = HashMap::new();
