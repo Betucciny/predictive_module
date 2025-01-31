@@ -1,29 +1,49 @@
-use crate::services::cache::{get_recommendations, RecommendationCache};
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use crate::MODEL_SERVER;
+use percent_encoding::percent_decode_str;
 use warp::Filter;
 
-pub async fn recommendation_handler(
-    cache: RecommendationCache,
+pub fn recommendation_handler(
 ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path!("recommend" / String)
-        .and(with_cache(cache.clone()))
-        .and_then(get_recommendation)
+    let base_route = warp::path("recommend");
+
+    let route_with_limit = base_route
+        .and(warp::path::param::<String>())
+        .and(warp::path::param::<usize>())
+        .and_then(get_recommendation_with_limit);
+
+    let route_without_limit = base_route
+        .and(warp::path::param::<String>())
+        .and_then(get_recommendation);
+
+    route_with_limit.or(route_without_limit)
+}
+async fn get_recommendation(client_id: String) -> Result<impl warp::Reply, warp::Rejection> {
+    println!(
+        "Received request for recommendations for client_id: {}",
+        client_id
+    );
+    let decoded_client_id = percent_decode_str(&client_id)
+        .decode_utf8_lossy()
+        .to_string();
+    match MODEL_SERVER.predict(decoded_client_id.as_str(), None) {
+        Some(recommendations) => Ok(warp::reply::json(&recommendations)),
+        None => Err(warp::reject::not_found()),
+    }
 }
 
-fn with_cache(
-    cache: RecommendationCache,
-) -> impl Filter<Extract = (RecommendationCache,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || cache.clone())
-}
-
-async fn get_recommendation(
+async fn get_recommendation_with_limit(
     client_id: String,
-    cache: RecommendationCache,
+    limit: usize,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    if let Some(recommendations) = get_recommendations(cache, &client_id).await {
-        Ok(warp::reply::json(&recommendations))
-    } else {
-        Ok(warp::reply::json(&Vec::<String>::new()))
+    println!(
+        "Received request for recommendations for client_id: {} with limit: {}",
+        client_id, limit
+    );
+    let decoded_client_id = percent_decode_str(&client_id)
+        .decode_utf8_lossy()
+        .to_string();
+    match MODEL_SERVER.predict(decoded_client_id.as_str(), Some(limit)) {
+        Some(recommendations) => Ok(warp::reply::json(&recommendations)),
+        None => Err(warp::reject::not_found()),
     }
 }

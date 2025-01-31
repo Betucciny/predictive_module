@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use std::env;
 use tiberius::{AuthMethod, Client, Config};
 use tokio::net::TcpStream;
-use tokio_util::compat::TokioAsyncWriteCompatExt;
+use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 
 pub struct SqlServerDatabase {
-    client: Client<tokio_util::compat::Compat<TcpStream>>,
+    client: Option<Client<Compat<TcpStream>>>,
 }
 
 impl SqlServerDatabase {
@@ -34,7 +34,9 @@ impl SqlServerDatabase {
         tcp.set_nodelay(true).unwrap();
         let client = Client::connect(config, tcp.compat_write()).await.unwrap();
 
-        SqlServerDatabase { client }
+        SqlServerDatabase {
+            client: Some(client),
+        }
     }
 }
 
@@ -72,7 +74,7 @@ impl DatabaseTrait for SqlServerDatabase {
                     table_par_fact, table_inve, table_client, table_fact, excluded_clients_clause
                 );
 
-        let mut result = self.client.query(query, &[]).await?;
+        let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
         let mut matrix: ClientProductMatrix = HashMap::new();
 
         while let Some(item) = result.try_next().await? {
@@ -86,7 +88,6 @@ impl DatabaseTrait for SqlServerDatabase {
                     .unwrap_or("unknown_product")
                     .to_string();
                 let total_quantity: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
-
                 matrix
                     .entry(client_id)
                     .or_insert_with(HashMap::new)
@@ -95,5 +96,12 @@ impl DatabaseTrait for SqlServerDatabase {
         }
 
         Ok(matrix)
+    }
+
+    async fn close(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(client) = self.client.take() {
+            client.close().await?;
+        }
+        Ok(())
     }
 }
