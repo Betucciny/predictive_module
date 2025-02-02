@@ -13,6 +13,10 @@ RUN apt-get update && apt-get install -y \
 # Create a new directory for the application
 WORKDIR /app
 
+#Create symbolic link to the shared library
+RUN ln -s /usr/lib/libfbclient.so /usr/lib/libgds.so.0
+RUN ln -s /usr/lib/libfbclient.so /usr/lib/libgds.so
+
 # Copy the Cargo.toml and Cargo.lock files
 COPY Cargo.toml Cargo.lock build.rs ./
 
@@ -30,6 +34,8 @@ COPY . .
 
 # Build the application
 RUN cargo build --release
+
+EXPOSE 3030
 
 # Set the entrypoint to the built binary
 ENTRYPOINT ["./target/release/your_project_name"]
