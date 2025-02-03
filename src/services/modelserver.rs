@@ -53,11 +53,19 @@ impl ModelServer {
     }
 
     fn start_file_watcher(&self) {
-        let hyperparameters_file = self.hyperparameters_file.clone();
-        let hyperparameters_dir = Path::new(&hyperparameters_file)
+        let hyperparameters_path = self.hyperparameters_file.clone();
+        let hyperparameters_dir = Path::new(&hyperparameters_path)
             .parent()
             .unwrap_or(Path::new("."))
             .to_path_buf();
+        let hyperparameters_file = Path::new(&hyperparameters_path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        println!("Watching directory: {:?}", hyperparameters_dir);
+        println!("Detected file: {:?}", hyperparameters_file);
         let model = self.model.clone();
         let notify = self.notify.clone();
 
@@ -89,7 +97,7 @@ impl ModelServer {
                     res = rx.recv() => {
                         match res {
                             Some(Ok(event)) => {
-                                println!("Received file event: {:?}", event);
+
                                 if event
                                     .paths
                                     .iter()
@@ -99,7 +107,7 @@ impl ModelServer {
                                     println!("Hyperparameters file changed or created, reloading model...");
                                     // Add a delay to allow the file writing process to complete
                                     sleep(Duration::from_millis(500)).await;
-                                    match load_json_data_from_file(&hyperparameters_file) {
+                                    match load_json_data_from_file(&hyperparameters_path) {
                                         Ok(json_data) => {
                                             let mut model = model.lock().unwrap();
                                             *model = Some(ALS::new(

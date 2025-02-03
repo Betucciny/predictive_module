@@ -54,9 +54,6 @@ pub async fn find_best_als_model(
     let num_factors = vec![20, 50];
     let regularization = vec![0.01, 0.1];
     let confidence_multiplier = vec![20.0, 40.0, 60.0];
-    // let num_factors = vec![20];
-    // let regularization = vec![0.01];
-    // let confidence_multiplier = vec![20.0];
 
     let hyperparameter_combinations =
         generate_hyperparameter_combinations(&num_factors, &regularization, &confidence_multiplier);
@@ -147,7 +144,7 @@ pub async fn find_best_als_model(
         client_factors: best_client_factors,
     };
 
-    save_hyperparameters_to_file(&json_data, "hyperparameters.json")
+    save_hyperparameters_to_file(&json_data, "./data/hyperparameters.json")
         .expect("Failed to save hyperparameters");
 
     Some(best_hyperparameters)

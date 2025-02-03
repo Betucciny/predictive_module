@@ -14,7 +14,7 @@ pub mod models;
 pub mod services;
 
 lazy_static::lazy_static! {
-    pub static ref MODEL_SERVER: Arc<ModelServer> = Arc::new(ModelServer::new("hyperparameters.json", Arc::new(Notify::new())));
+    pub static ref MODEL_SERVER: Arc<ModelServer> = Arc::new(ModelServer::new("./data/hyperparameters.json", Arc::new(Notify::new())));
 }
 
 #[tokio::main]
