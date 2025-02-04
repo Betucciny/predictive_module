@@ -1,49 +1,47 @@
-FROM rust:latest
+# Use Arch Linux as the base image
+FROM archlinux:latest
 
-# Install required packages
-RUN apt-get update && apt-get install -y \
-    libfbclient2 \
-    liblapack-dev \
-    libblas-dev \
-    libopenblas-dev \
-    gfortran \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Update package lists and install necessary tools
+RUN pacman -Syu --noconfirm \
+    base-devel \
+    rust \
+    cargo \
+    openblas \
+    lapack \
+    openssl \
+    gdb \
+    git \
+    libfbclient \
+    && pacman -Scc --noconfirm  # Clean package cache
 
-# Create symbolic links for libfbclient
-RUN ln -s /usr/lib/x86_64-linux-gnu/libfbclient.so.2 /usr/lib/libfbclient.so.2 \
-    && ln -s /usr/lib/libfbclient.so.2 /usr/lib/libfbclient.so \
-    && ln -s /usr/lib/libfbclient.so /usr/lib/libgds.so.0 \
-    && ln -s /usr/lib/libfbclient.so /usr/lib/libgds.so
+# Set OpenBLAS to single-threaded mode (avoiding potential threading issues)
+ENV OPENBLAS_NUM_THREADS=1
+ENV LD_LIBRARY_PATH=/usr/lib
 
-# Set the library path
-ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/lib
-
-# Create a new directory for the application
+# Create working directory
 WORKDIR /app
 
-# Copy the Cargo.toml and Cargo.lock files
+# Copy the Cargo files separately to optimize caching
 COPY Cargo.toml Cargo.lock build.rs ./
 
 # Create a dummy main.rs to build dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 
-# Build the dependencies
+# Build dependencies first to speed up later builds
 RUN cargo build --release
 
-# Remove the dummy main.rs
+# Remove dummy main.rs and copy actual source code
 RUN rm src/main.rs
-
-# Copy the source code
 COPY . .
 
-#Create a new directory for the trained models
-RUN mkdir data
+# Create a new directory for trained models
+RUN mkdir -p data
 
-# Build the application
+# Build final Rust application
 RUN cargo build --release
 
+# Expose the application's port
 EXPOSE 3030
 
-# Set the entrypoint to the built binary
-ENTRYPOINT ["./target/release/predictive_module"]
+# Set the entrypoint to run inside gdb for debugging
+ENTRYPOINT ["gdb", "-ex", "run", "--args", "./target/release/predictive_module"]
