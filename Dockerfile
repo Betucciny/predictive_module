@@ -9,7 +9,6 @@ RUN pacman -Syu --noconfirm \
     openblas \
     lapack \
     openssl \
-    gdb \
     git \
     libfbclient \
     && pacman -Scc --noconfirm  # Clean package cache
@@ -44,4 +43,4 @@ RUN cargo build --release
 EXPOSE 3030
 
 # Set the entrypoint to run inside gdb for debugging
-ENTRYPOINT ["gdb", "-ex", "run", "--args", "./target/release/predictive_module"]
+ENTRYPOINT ["./target/release/predictive_module"]
