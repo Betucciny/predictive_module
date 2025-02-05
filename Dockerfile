@@ -11,7 +11,10 @@ RUN pacman -Syu --noconfirm \
     openssl \
     git \
     libfbclient \
+    tzdata \
     && pacman -Scc --noconfirm  # Clean package cache
+
+ENV TZ=America/Mexico_City
 
 # Set OpenBLAS to single-threaded mode (avoiding potential threading issues)
 ENV OPENBLAS_NUM_THREADS=1
