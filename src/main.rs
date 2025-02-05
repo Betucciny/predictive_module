@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start the Warp server
     let (addr, server) = warp::serve(recommendation_routes).bind_with_graceful_shutdown(
-        ([127, 0, 0, 1], 3030),
+        ([0, 0, 0, 0], 3030),
         async {
             signal::ctrl_c()
                 .await
