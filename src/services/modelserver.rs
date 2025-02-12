@@ -43,10 +43,12 @@ impl ModelServer {
         self.start_file_watcher();
     }
 
-    pub fn predict(&self, user_id: &str, n: Option<usize>) -> Option<Vec<String>> {
+    pub fn predict(&self, user_id: &str, n: Option<usize>) -> Option<(Vec<String>, f64)> {
         let model = self.model.lock().unwrap();
         if let Some(ref m) = *model {
-            return Some(m.recommend(user_id, n));
+            let recommendation = m.recommend(user_id, n);
+            let epr = m.compute_epr().unwrap();
+            return Some((recommendation, epr));
         } else {
             return None;
         }
