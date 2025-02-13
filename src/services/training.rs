@@ -51,12 +51,12 @@ pub async fn find_best_als_model(
     notify: Arc<Notify>,
 ) -> Option<Hyperparameters> {
     println!("Finding best ALS model...");
-    // let num_factors = vec![20, 50, 100, 200];
-    // let regularization = vec![0.01, 0.1];
-    // let confidence_multiplier = vec![20.0, 40.0, 60.0];
-    let num_factors = vec![20];
-    let regularization = vec![0.01];
-    let confidence_multiplier = vec![20.0];
+    let num_factors = vec![20, 50, 100, 200];
+    let regularization = vec![0.01, 0.1];
+    let confidence_multiplier = vec![20.0, 40.0, 60.0];
+    // let num_factors = vec![20];
+    // let regularization = vec![0.01];
+    // let confidence_multiplier = vec![20.0];
 
     let hyperparameter_combinations =
         generate_hyperparameter_combinations(&num_factors, &regularization, &confidence_multiplier);
