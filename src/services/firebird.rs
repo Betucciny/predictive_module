@@ -1,6 +1,8 @@
-use crate::models::db::{ClientProductMatrix, DatabaseTrait};
+use crate::models::db::{
+    ClientPage, ClientProductMatrix, ClientRow, DatabaseTrait, ProductPage, ProductRow,
+};
 use async_trait::async_trait;
-use rsfbclient::{builder_pure_rust, Connection, Queryable};
+use rsfbclient::{builder_pure_rust, Connection, FbError, Queryable};
 use rsfbclient_rust::RustFbClient;
 use std::collections::HashMap;
 use std::env;
@@ -88,5 +90,120 @@ impl DatabaseTrait for FirebirdDatabase {
             conn.close()?;
         }
         Ok(())
+    }
+
+    async fn get_clients(
+        &mut self,
+        search: String,
+        page: i64,
+    ) -> Result<ClientPage, Box<dyn std::error::Error>> {
+        let table_client = env::var("TABLE_CLIENT").expect("TABLE_CLIENT is not set");
+        let excluded_clients: Vec<String> = env::var("EXCLUDED_CLIENTS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| format!("'{}'", s.trim()))
+            .collect();
+
+        let excluded_clients_clause = if !excluded_clients.is_empty() {
+            format!("AND CLAVE NOT IN ({})", excluded_clients.join(", "))
+        } else {
+            String::new()
+        };
+
+        let start = (page - 1) * 10 + 1;
+        let end = page * 10;
+
+        let query1 = format!(
+            "SELECT CLAVE as id, NOMBRE as name, EMAILPRED as email
+            FROM {}
+            WHERE NOMBRE LIKE '%{}%'
+            AND NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}
+            ORDER BY id
+            ROWS {} TO {};",
+            table_client, search, excluded_clients_clause, start, end,
+        );
+
+        let query2 = format!(
+            "SELECT COUNT(*)/10 as total_pages
+             FROM {}
+             WHERE NOMBRE LIKE '%{}%'
+             AND NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}",
+            table_client, search, excluded_clients_clause,
+        );
+
+        let mut clients = Vec::new();
+        let rows = self.conn.as_mut().unwrap().query_iter(&query1, ())?;
+        for row in rows {
+            let (id, name, email): (String, String, Option<String>) = row?;
+
+            clients.push(ClientRow {
+                id,
+                name,
+                email: email.unwrap_or("unknown_email".to_string()),
+            });
+        }
+        let total_pages_result: Result<Option<(i64,)>, FbError> =
+            self.conn.as_mut().unwrap().query_first(&query2, ());
+
+        let total_pages = total_pages_result
+            .unwrap()
+            .map(|tuple| tuple.0)
+            .unwrap_or(0);
+
+        Ok(ClientPage {
+            current_page: page,
+            total_pages,
+            clients,
+        })
+    }
+
+    async fn get_products(
+        &mut self,
+        search: String,
+        page: i64,
+    ) -> Result<ProductPage, Box<dyn std::error::Error>> {
+        let table_inve = env::var("TABLE_INVE").expect("TABLE_INVE is not set");
+
+        let query1 = format!(
+            "SELECT CVE_ART as id, DESCR as description, ULT_COSTO as price
+            FROM {}
+            WHERE DESCR LIKE '%{}%'
+            ORDER BY id
+            ROWS {} TO {};",
+            table_inve,
+            search,
+            (page - 1) * 10 + 1,
+            page * 10,
+        );
+        let query2 = format!(
+            "SELECT COUNT(*)/10 as total_pages
+             FROM {}
+             WHERE DESCR LIKE '%{}%'",
+            table_inve, search,
+        );
+
+        let mut products = Vec::new();
+        let rows = self.conn.as_mut().unwrap().query_iter(&query1, ())?;
+        for row in rows {
+            let (id, description, price): (String, String, f64) = row?;
+            products.push(ProductRow {
+                id,
+                description,
+                price,
+            });
+        }
+        let total_pages_result: Result<Option<(i64,)>, FbError> =
+            self.conn.as_mut().unwrap().query_first(&query2, ());
+
+        let total_pages = total_pages_result
+            .unwrap()
+            .map(|tuple| tuple.0)
+            .unwrap_or(0);
+
+        Ok(ProductPage {
+            current_page: page,
+            total_pages,
+            products,
+        })
     }
 }

@@ -28,8 +28,9 @@ rand = "0.8"                                                     # For random in
 warp = "0.3" # For creating the web server
 
 # Caching and synchronization
-tokio-cron-scheduler = { version = "0.13.0", features = ["english"] }
-tokio-sync = "0.1"                                                    # For using Mutex and synchronization
+tokio-cron-scheduler = "0.13.0"
+chrono-tz = "0.10.1"
+tokio-sync = "0.1"              # For using Mutex and synchronization
 
 # Serde for JSON serialization/deserialization and to watch for file changes
 serde = { version = "1.0", features = ["derive"] }
@@ -46,6 +47,7 @@ rayon = "1.10.0"
 # For singletons
 lazy_static = "1.5"
 percent-encoding = "2.3.1"
+
 
 # Development dependencies
 [dev-dependencies]

@@ -4,14 +4,14 @@ use services::cronjobs::schedule_jobs;
 use services::modelserver::ModelServer;
 use std::sync::Arc;
 use tokio::signal;
-use tokio::sync::Notify;
+use tokio::sync::{Mutex, Notify};
 
 pub mod handlers;
 pub mod models;
 pub mod services;
 
 lazy_static::lazy_static! {
-    pub static ref MODEL_SERVER: Arc<ModelServer> = Arc::new(ModelServer::new("./data/hyperparameters.json", Arc::new(Notify::new())));
+    pub static ref MODEL_SERVER: Arc<Mutex<ModelServer>> = ModelServer::new("./data/hyperparameters.json");
 }
 
 #[tokio::main]
@@ -32,8 +32,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     };
 
-    // Initialize the MODEL_SERVER with the notify instance
-    MODEL_SERVER.initialize(notify.clone()).await.unwrap();
+    {
+        let mut model_server_lock = MODEL_SERVER.lock().await;
+        model_server_lock.initialize(notify.clone()).await.unwrap();
+    }
 
     // Create the Warp filters
     let routes = global_handler();

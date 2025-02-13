@@ -1,5 +1,7 @@
-use crate::models::db::{ClientProductMatrix, DatabaseTrait};
-use async_trait::async_trait; // Needed for async trait methods
+use crate::models::db::{
+    ClientPage, ClientProductMatrix, ClientRow, DatabaseTrait, ProductPage, ProductRow,
+};
+use async_trait::async_trait;
 use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::env;
@@ -103,5 +105,145 @@ impl DatabaseTrait for SqlServerDatabase {
             client.close().await?;
         }
         Ok(())
+    }
+
+    async fn get_clients(
+        &mut self,
+        search: String,
+        page: i64,
+    ) -> Result<ClientPage, Box<dyn std::error::Error>> {
+        let table_client = env::var("TABLE_CLIENT").expect("TABLE_CLIENT is not set");
+        let excluded_clients: Vec<String> = env::var("EXCLUDED_CLIENTS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| format!("'{}'", s.trim()))
+            .collect();
+
+        let excluded_clients_clause = if !excluded_clients.is_empty() {
+            format!("AND CLAVE NOT IN ({})", excluded_clients.join(", "))
+        } else {
+            String::new()
+        };
+
+        let offset = (page - 1) * 10;
+
+        let query1 = format!(
+            "SELECT CLAVE as id, NOMBRE as name, EMAILPRED as email
+             FROM dbo.{}
+             WHERE NOMBRE LIKE '%{}%'
+             AND NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}
+             ORDER BY CLAVE
+             OFFSET {} ROWS
+             FETCH NEXT 10 ROWS ONLY;",
+            table_client, search, excluded_clients_clause, offset,
+        );
+
+        let query2 = format!(
+            "SELECT COUNT(*)/10 as total_pages
+             FROM dbo.{}
+             WHERE NOMBRE LIKE '%{}%'
+             AND NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}",
+            table_client, search, excluded_clients_clause,
+        );
+
+        let client = self.client.as_mut().unwrap();
+
+        // Execute the first query and process the results
+        let clients = {
+            let mut result = client.query(query1, &[]).await?;
+            let mut clients = Vec::new();
+            while let Some(item) = result.try_next().await? {
+                if let Some(row) = item.into_row() {
+                    let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
+                    let name: String = row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
+                    let email: String =
+                        row.get::<&str, _>(2).unwrap_or("unknown_email").to_string();
+
+                    clients.push(ClientRow { id, name, email });
+                }
+            }
+            clients
+        };
+        let total_pages = client
+            .query(query2, &[])
+            .await?
+            .try_next()
+            .await?
+            .and_then(|row| row.into_row())
+            .and_then(|row| row.get::<i64, _>(0))
+            .unwrap_or(0);
+
+        Ok(ClientPage {
+            current_page: page,
+            total_pages,
+            clients,
+        })
+    }
+    async fn get_products(
+        &mut self,
+        search: String,
+        page: i64,
+    ) -> Result<ProductPage, Box<dyn std::error::Error>> {
+        let table_inve = env::var("TABLE_INVE").expect("TABLE_INVE is not set");
+
+        let query1 = format!(
+            "SELECT CVE_ART as id, DESCR as description, ULT_COSTO as price
+                FROM dbo.{}
+                WHERE DESCR LIKE '%{}%'
+                ORDER BY CVE_ART
+                OFFSET {} ROWS
+                FETCH NEXT 10 ROWS ONLY;",
+            table_inve,
+            search,
+            (page - 1) * 10,
+        );
+
+        let query2 = format!(
+            "SELECT COUNT(*)/10 as total_pages
+                FROM dbo.{}
+                WHERE DESCR LIKE '%{}%';",
+            table_inve, search,
+        );
+
+        let client = self.client.as_mut().unwrap();
+
+        let products = {
+            let mut result = client.query(query1, &[]).await?;
+            let mut products = Vec::new();
+            while let Some(item) = result.try_next().await? {
+                if let Some(row) = item.into_row() {
+                    let id: String = row
+                        .get::<&str, _>(0)
+                        .unwrap_or("unknown_product")
+                        .to_string();
+                    let description: String = row
+                        .get::<&str, _>(1)
+                        .unwrap_or("unknown_product")
+                        .to_string();
+                    let price: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
+                    products.push(ProductRow {
+                        id,
+                        description,
+                        price,
+                    });
+                }
+            }
+            products
+        };
+
+        let total_pages = client
+            .query(query2, &[])
+            .await?
+            .try_next()
+            .await?
+            .and_then(|row| row.into_row())
+            .and_then(|row| row.get::<i64, _>(0))
+            .unwrap_or(0);
+
+        Ok(ProductPage {
+            current_page: page,
+            total_pages,
+            products,
+        })
     }
 }
