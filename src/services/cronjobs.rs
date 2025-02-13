@@ -34,8 +34,8 @@ pub async fn schedule_jobs(notify: Arc<Notify>) -> Result<(), Box<dyn std::error
                 }
             };
 
-            find_best_als_model(matrix, job_notify).await;
-            MODEL_SERVER.initialize();
+            find_best_als_model(matrix, job_notify.clone()).await;
+            MODEL_SERVER.initialize(job_notify.clone()).await.unwrap();
             println!("Model training and update job executed");
         })
     })?;

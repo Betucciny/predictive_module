@@ -2,7 +2,15 @@ use crate::MODEL_SERVER;
 use percent_encoding::percent_decode_str;
 use warp::Filter;
 
-pub fn recommendation_handler(
+pub fn global_handler(
+) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let recommendation_route = recommendation_handler();
+    let metadata_route = metadata_handler();
+
+    recommendation_route.or(metadata_route)
+}
+
+fn recommendation_handler(
 ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let base_route = warp::path("recommend");
 
@@ -17,6 +25,12 @@ pub fn recommendation_handler(
 
     route_with_limit.or(route_without_limit)
 }
+
+fn metadata_handler(
+) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::path("metadata").and_then(get_metadata)
+}
+
 async fn get_recommendation(client_id: String) -> Result<impl warp::Reply, warp::Rejection> {
     println!(
         "Received request for recommendations for client_id: {}",
@@ -46,4 +60,9 @@ async fn get_recommendation_with_limit(
         Some(recommendations) => Ok(warp::reply::json(&recommendations)),
         None => Err(warp::reject::not_found()),
     }
+}
+
+async fn get_metadata() -> Result<impl warp::Reply, warp::Rejection> {
+    let metadata = MODEL_SERVER.get_metadata();
+    Ok(warp::reply::json(&metadata))
 }

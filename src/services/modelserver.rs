@@ -1,17 +1,29 @@
+use crate::models::db::{Database, DatabaseTrait};
 use crate::services::als::ALS;
-use crate::services::training::JSONData;
+use crate::services::firebird::FirebirdDatabase;
+use crate::services::mssql::SqlServerDatabase;
+use crate::services::training::{find_best_als_model, JSONData};
 use notify::{recommended_watcher, EventKind, RecursiveMode, Watcher};
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{mpsc, Mutex as TokioMutex, Notify};
 use tokio::time::{sleep, Duration};
 
 pub struct ModelServer {
     model: Arc<Mutex<Option<ALS>>>,
     hyperparameters_file: String,
     notify: Arc<Notify>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetadataModel {
+    num_factors: usize,
+    regularization: f64,
+    confidence_multiplier: f64,
+    epr: f64,
 }
 
 impl ModelServer {
@@ -23,7 +35,10 @@ impl ModelServer {
         }
     }
 
-    pub fn initialize(&self) {
+    pub async fn initialize(
+        &self,
+        notify: Arc<Notify>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Ok(json_data) = load_json_data_from_file(&self.hyperparameters_file) {
             let mut model = ALS::new(
                 json_data.hyperparameters.num_factors,
@@ -38,19 +53,49 @@ impl ModelServer {
             *model_lock = Some(model);
         } else {
             println!("Hyperparameters file not found, waiting for file creation...");
+            let db_type = std::env::var("DB_TYPE").expect("DB_TYPE is not set in the environment");
+            let db: Arc<TokioMutex<dyn DatabaseTrait + Send + Sync>> = match db_type.as_str() {
+                "sqlserver" => Arc::new(TokioMutex::new(SqlServerDatabase::new().await)),
+                "firebird" => Arc::new(TokioMutex::new(FirebirdDatabase::new())),
+                _ => return Err(format!("Unsupported DB_TYPE: '{}'", db_type).into()),
+            };
+            let matrix = Database::new(db).build_matrix().await.unwrap();
+            let _ = {
+                let notify = notify.clone();
+                tokio::spawn(async move { find_best_als_model(matrix, notify).await })
+            };
         }
 
         self.start_file_watcher();
+        return Ok(());
     }
 
-    pub fn predict(&self, user_id: &str, n: Option<usize>) -> Option<(Vec<String>, f64)> {
+    pub fn predict(&self, user_id: &str, n: Option<usize>) -> Option<Vec<String>> {
         let model = self.model.lock().unwrap();
         if let Some(ref m) = *model {
             let recommendation = m.recommend(user_id, n);
-            let epr = m.compute_epr().unwrap();
-            return Some((recommendation, epr));
+            return Some(recommendation);
         } else {
             return None;
+        }
+    }
+
+    pub fn get_metadata(&self) -> MetadataModel {
+        let model = self.model.lock().unwrap();
+        if let Some(ref m) = *model {
+            MetadataModel {
+                num_factors: m.num_factors,
+                regularization: m.regularization,
+                confidence_multiplier: m.confidence_multiplier,
+                epr: m.compute_epr().unwrap_or(0.0),
+            }
+        } else {
+            MetadataModel {
+                num_factors: 0,
+                regularization: 0.0,
+                confidence_multiplier: 0.0,
+                epr: 0.0,
+            }
         }
     }
 
@@ -66,8 +111,7 @@ impl ModelServer {
             .to_str()
             .unwrap()
             .to_string();
-        println!("Watching directory: {:?}", hyperparameters_dir);
-        println!("Detected file: {:?}", hyperparameters_file);
+
         let model = self.model.clone();
         let notify = self.notify.clone();
 
