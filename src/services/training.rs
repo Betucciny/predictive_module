@@ -4,6 +4,7 @@ use futures::FutureExt;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::collections::HashMap;
 use std::fs::File;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -23,6 +24,8 @@ pub struct JSONData {
     pub matrix: ClientProductMatrix,
     pub product_factors: Vec<Vec<f64>>,
     pub client_factors: Vec<Vec<f64>>,
+    pub client_index: HashMap<String, usize>,
+    pub product_index: HashMap<String, usize>,
 }
 
 fn generate_hyperparameter_combinations(
@@ -54,7 +57,7 @@ pub async fn find_best_als_model(
     // let num_factors = vec![20, 50, 100, 200];
     // let regularization = vec![0.01, 0.1];
     // let confidence_multiplier = vec![20.0, 40.0, 60.0];
-    let num_factors = vec![20, 50, 100, 200];
+    let num_factors = vec![20];
     let regularization = vec![0.01];
     let confidence_multiplier = vec![20.0];
 
@@ -69,60 +72,71 @@ pub async fn find_best_als_model(
 
     let start_time = Instant::now();
 
-    let (best_hyperparameters, best_epr, best_client_factors, best_product_factors) =
-        hyperparameter_combinations
-            .par_iter()
-            .filter_map(|hyperparameters| {
-                let notify = notify.clone();
-                if notify.notified().now_or_never().is_some() {
-                    println!("Cancellation requested, stopping find_best_als_model");
-                    return None;
-                }
+    let (
+        best_hyperparameters,
+        best_epr,
+        best_client_factors,
+        best_product_factors,
+        best_client_index,
+        best_product_index,
+    ) = hyperparameter_combinations
+        .par_iter()
+        .filter_map(|hyperparameters| {
+            let notify = notify.clone();
+            if notify.notified().now_or_never().is_some() {
+                println!("Cancellation requested, stopping find_best_als_model");
+                return None;
+            }
 
-                let matrix_clone = matrix.clone(); // Clone the matrix for each ALS instance
-                let mut als = ALS::new(
-                    hyperparameters.num_factors,
-                    hyperparameters.regularization,
-                    hyperparameters.confidence_multiplier,
-                    1e-4,
-                    200,
-                    matrix_clone,
-                );
-                als.fit();
-                let epr = als.compute_epr().unwrap();
+            let matrix_clone = matrix.clone(); // Clone the matrix for each ALS instance
+            let mut als = ALS::new(
+                hyperparameters.num_factors,
+                hyperparameters.regularization,
+                hyperparameters.confidence_multiplier,
+                1e-4,
+                200,
+                matrix_clone,
+            );
+            als.fit(notify.clone());
+            let epr = als.compute_epr().unwrap();
 
-                let processed = processed_counter.fetch_add(1, Ordering::SeqCst) + 1;
-                println!(
-                    "Processed {}/{} combinations EPR: {:.2}% ({:.2}%)",
-                    processed,
-                    total_combinations,
-                    epr * 100.0,
-                    (processed as f64 / total_combinations as f64) * 100.0
-                );
+            let processed = processed_counter.fetch_add(1, Ordering::SeqCst) + 1;
+            println!(
+                "Processed {}/{} combinations EPR: {:.2}% ({:.2}%)",
+                processed,
+                total_combinations,
+                epr * 100.0,
+                (processed as f64 / total_combinations as f64) * 100.0
+            );
 
-                let product_factors = als
-                    .product_factors
-                    .clone()
-                    .unwrap()
-                    .outer_iter()
-                    .map(|row| row.to_vec())
-                    .collect();
-                let client_factors = als
-                    .client_factors
-                    .clone()
-                    .unwrap()
-                    .outer_iter()
-                    .map(|row| row.to_vec())
-                    .collect();
+            let product_factors: Vec<Vec<f64>> = als
+                .product_factors
+                .clone()
+                .unwrap()
+                .outer_iter()
+                .map(|row| row.to_vec())
+                .collect();
+            let client_factors: Vec<Vec<f64>> = als
+                .client_factors
+                .clone()
+                .unwrap()
+                .outer_iter()
+                .map(|row| row.to_vec())
+                .collect();
 
-                Some((
-                    hyperparameters.clone(),
-                    epr,
-                    client_factors,
-                    product_factors,
-                ))
-            })
-            .max_by(|(_, epr1, _, _), (_, epr2, _, _)| epr1.partial_cmp(epr2).unwrap())?;
+            let client_index = als.client_index.clone().unwrap();
+            let product_index = als.product_index.clone().unwrap();
+
+            Some((
+                hyperparameters.clone(),
+                epr,
+                client_factors,
+                product_factors,
+                client_index,
+                product_index,
+            ))
+        })
+        .max_by(|(_, epr1, _, _, _, _), (_, epr2, _, _, _, _)| epr1.partial_cmp(epr2).unwrap())?;
 
     let elapsed_time = start_time.elapsed();
     println!("Best EPR: {:?}%", best_epr * 100.0);
@@ -141,6 +155,8 @@ pub async fn find_best_als_model(
         matrix,
         product_factors: best_product_factors,
         client_factors: best_client_factors,
+        client_index: best_client_index,
+        product_index: best_product_index,
     };
 
     save_hyperparameters_to_file(&json_data, "./data/hyperparameters.json")

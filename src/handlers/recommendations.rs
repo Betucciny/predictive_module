@@ -28,7 +28,11 @@ fn recommendation_handler(
 
 fn metadata_handler(
 ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path("metadata").and_then(get_metadata)
+    warp::path("metadata").and_then(|| async move {
+        println!("Received request for metadata");
+        let metadata = MODEL_SERVER.lock().await.get_metadata();
+        Result::<_, warp::Rejection>::Ok(warp::reply::json(&metadata))
+    })
 }
 
 fn clients_handler(
@@ -42,6 +46,10 @@ fn clients_handler(
                     .get("page")
                     .and_then(|p| p.parse::<i64>().ok())
                     .unwrap_or(1);
+                println!(
+                    "Received request for clients with search: {} and page: {}",
+                    search, page
+                );
                 match MODEL_SERVER.lock().await.get_clients(search, page).await {
                     Ok(client_page) => Ok(warp::reply::json(&client_page)),
                     Err(_) => Err(warp::reject::not_found()),
@@ -61,6 +69,10 @@ fn products_handler(
                     .get("page")
                     .and_then(|p| p.parse::<i64>().ok())
                     .unwrap_or(1);
+                println!(
+                    "Received request for products with search: {} and page: {}",
+                    search, page
+                );
                 match MODEL_SERVER.lock().await.get_products(search, page).await {
                     Ok(product_page) => Ok(warp::reply::json(&product_page)),
                     Err(e) => {
@@ -109,9 +121,4 @@ async fn get_recommendation_with_limit(
         Some(recommendations) => Ok(warp::reply::json(&recommendations)),
         None => Err(warp::reject::not_found()),
     }
-}
-
-async fn get_metadata() -> Result<impl warp::Reply, warp::Rejection> {
-    let metadata = MODEL_SERVER.lock().await.get_metadata();
-    Ok(warp::reply::json(&metadata))
 }

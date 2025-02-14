@@ -1,9 +1,12 @@
 use crate::models::db::ClientProductMatrix;
+use futures::FutureExt;
 use ndarray::{s, Array1, Array2, Axis};
 use ndarray_linalg::Solve;
 use ndarray_rand::{rand_distr::Uniform, RandomExt};
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::sync::Arc;
+use tokio::sync::Notify;
 
 pub struct ALS {
     pub num_factors: usize,
@@ -15,8 +18,8 @@ pub struct ALS {
 
     pub client_factors: Option<Array2<f64>>,
     pub product_factors: Option<Array2<f64>>,
-    client_index: Option<HashMap<String, usize>>,
-    product_index: Option<HashMap<String, usize>>,
+    pub client_index: Option<HashMap<String, usize>>,
+    pub product_index: Option<HashMap<String, usize>>,
 }
 
 impl ALS {
@@ -65,6 +68,7 @@ impl ALS {
                 rating_matrix[(product_idx, client_idx)] = quantity;
             }
         }
+
         self.client_index = Some(client_index);
         self.product_index = Some(product_index);
 
@@ -77,7 +81,7 @@ impl ALS {
         weighted_matrix
     }
 
-    pub fn fit(&mut self) {
+    pub fn fit(&mut self, notify: Arc<Notify>) {
         let rating_matrix = self.build_rating_matrix();
         let weighted_matrix = self.create_weight_matrix(&rating_matrix);
 
@@ -90,8 +94,16 @@ impl ALS {
             Array2::<f64>::random((num_products, self.num_factors), Uniform::new(0.0, 1.0));
 
         for _ in 0..self.max_iterations {
+            if notify.notified().now_or_never().is_some() {
+                break;
+            }
+
             // Fix product_factors and solve for client_factors
             for i in 0..num_clients {
+                if notify.notified().now_or_never().is_some() {
+                    break;
+                }
+
                 let ratings = weighted_matrix.slice(s![.., i]);
                 let non_zero_indices: Vec<usize> = ratings
                     .indexed_iter()
@@ -114,6 +126,10 @@ impl ALS {
 
             // Fix client_factors and solve for product_factors
             for j in 0..num_products {
+                if notify.notified().now_or_never().is_some() {
+                    break;
+                }
+
                 let ratings = weighted_matrix.slice(s![j, ..]);
                 let non_zero_indices: Vec<usize> = ratings
                     .indexed_iter()
@@ -134,7 +150,6 @@ impl ALS {
                     .assign(&lhs.solve_into(rhs).unwrap());
             }
         }
-
         self.client_factors = Some(client_factors);
         self.product_factors = Some(product_factors);
     }
@@ -235,9 +250,9 @@ impl ALS {
         &mut self,
         client_factors: &Vec<Vec<f64>>,
         product_factors: &Vec<Vec<f64>>,
+        client_index: &HashMap<String, usize>,
+        product_index: &HashMap<String, usize>,
     ) {
-        self.build_rating_matrix();
-
         let num_clients = client_factors.len();
         let num_products = product_factors.len();
 
@@ -254,8 +269,9 @@ impl ALS {
                 .row_mut(i)
                 .assign(&Array1::from_vec(factors.clone()));
         }
-
         self.client_factors = Some(client_factors_array);
         self.product_factors = Some(product_factors_array);
+        self.client_index = Some(client_index.clone());
+        self.product_index = Some(product_index.clone());
     }
 }

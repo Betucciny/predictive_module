@@ -60,7 +60,12 @@ impl ModelServer {
                 100,
                 json_data.matrix.clone(),
             );
-            model.build_from_data(&json_data.client_factors, &json_data.product_factors);
+            model.build_from_data(
+                &json_data.client_factors,
+                &json_data.product_factors,
+                &json_data.client_index,
+                &json_data.product_index,
+            );
             let mut model_lock = self.model.lock().unwrap();
             *model_lock = Some(model);
         } else {
@@ -213,6 +218,8 @@ impl ModelServer {
                                                 m.build_from_data(
                                                     &json_data.client_factors,
                                                     &json_data.product_factors,
+                                                    &json_data.client_index,
+                                                    &json_data.product_index,
                                                 );
                                             }
                                             println!("Model reloaded successfully.");
