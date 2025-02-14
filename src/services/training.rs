@@ -51,12 +51,12 @@ pub async fn find_best_als_model(
     notify: Arc<Notify>,
 ) -> Option<Hyperparameters> {
     println!("Finding best ALS model...");
+    // let num_factors = vec![20, 50, 100, 200];
+    // let regularization = vec![0.01, 0.1];
+    // let confidence_multiplier = vec![20.0, 40.0, 60.0];
     let num_factors = vec![20, 50, 100, 200];
-    let regularization = vec![0.01, 0.1];
-    let confidence_multiplier = vec![20.0, 40.0, 60.0];
-    // let num_factors = vec![20];
-    // let regularization = vec![0.01];
-    // let confidence_multiplier = vec![20.0];
+    let regularization = vec![0.01];
+    let confidence_multiplier = vec![20.0];
 
     let hyperparameter_combinations =
         generate_hyperparameter_combinations(&num_factors, &regularization, &confidence_multiplier);
@@ -93,9 +93,10 @@ pub async fn find_best_als_model(
 
                 let processed = processed_counter.fetch_add(1, Ordering::SeqCst) + 1;
                 println!(
-                    "Processed {}/{} combinations ({:.2}%)",
+                    "Processed {}/{} combinations EPR: {:.2}% ({:.2}%)",
                     processed,
                     total_combinations,
+                    epr * 100.0,
                     (processed as f64 / total_combinations as f64) * 100.0
                 );
 
@@ -125,16 +126,11 @@ pub async fn find_best_als_model(
 
     let elapsed_time = start_time.elapsed();
     println!("Best EPR: {:?}%", best_epr * 100.0);
+    println!("Best hyperparameters: {:?}", best_hyperparameters);
     println!(
         "Time taken to process all combinations: {:.2?}",
         elapsed_time
     );
-
-    let best_hyperparameters = Hyperparameters {
-        num_factors: best_hyperparameters.num_factors,
-        regularization: best_hyperparameters.regularization,
-        confidence_multiplier: best_hyperparameters.confidence_multiplier,
-    };
 
     let json_data = JSONData {
         hyperparameters: Hyperparameters {
