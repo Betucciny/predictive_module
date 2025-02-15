@@ -136,7 +136,7 @@ pub async fn find_best_als_model(
                 product_index,
             ))
         })
-        .max_by(|(_, epr1, _, _, _, _), (_, epr2, _, _, _, _)| epr1.partial_cmp(epr2).unwrap())?;
+        .min_by(|(_, epr1, _, _, _, _), (_, epr2, _, _, _, _)| epr1.partial_cmp(epr2).unwrap())?;
 
     let elapsed_time = start_time.elapsed();
     println!("Best EPR: {:?}%", best_epr * 100.0);
