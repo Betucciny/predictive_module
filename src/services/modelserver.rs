@@ -1,21 +1,30 @@
-use crate::models::db::{ClientPage, Database, DatabaseError, DatabaseTrait, ProductPage};
+use crate::models::db::{
+    ClientPage, ClientRow, Database, DatabaseError, DatabaseTrait, ProductPage, ProductRow,
+};
 use crate::services::als::ALS;
 use crate::services::firebird::FirebirdDatabase;
 use crate::services::mssql::SqlServerDatabase;
 use crate::services::training::find_best_als_model;
+use futures::future::join_all;
 use notify::{recommended_watcher, EventKind, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs::File;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex as TokioMutex, Notify};
 use tokio::time::{sleep, Duration};
 
 use super::training::JSONData;
 
+#[derive(Serialize, Deserialize)]
+pub struct Recommendation {
+    pub client: ClientRow,
+    pub products: Vec<ProductRow>,
+}
+
 pub struct ModelServer {
-    model: Arc<Mutex<Option<ALS>>>,
+    model: Arc<TokioMutex<Option<ALS>>>,
     hyperparameters_file: String,
     notify: Option<Arc<Notify>>,
     db: Option<Arc<TokioMutex<Database>>>,
@@ -30,13 +39,13 @@ pub struct MetadataModel {
 }
 
 impl ModelServer {
-    pub fn new(hyperparameters_file: &str) -> Arc<TokioMutex<Self>> {
-        Arc::new(TokioMutex::new(ModelServer {
-            model: Arc::new(Mutex::new(None)),
+    pub fn new(hyperparameters_file: &str) -> Arc<TokioMutex<Option<Self>>> {
+        Arc::new(TokioMutex::new(Some(ModelServer {
+            model: Arc::new(TokioMutex::new(None)),
             hyperparameters_file: hyperparameters_file.to_string(),
             notify: None,
             db: None,
-        }))
+        })))
     }
 
     pub async fn initialize(
@@ -66,7 +75,7 @@ impl ModelServer {
                 &json_data.client_index,
                 &json_data.product_index,
             );
-            let mut model_lock = self.model.lock().unwrap();
+            let mut model_lock = self.model.lock().await;
             *model_lock = Some(model);
         } else {
             println!("Hyperparameters file not found, waiting for file creation...");
@@ -89,18 +98,36 @@ impl ModelServer {
         return Ok(());
     }
 
-    pub fn predict(&self, user_id: &str, n: Option<usize>) -> Option<Vec<String>> {
-        let model = self.model.lock().unwrap();
+    pub async fn predict(&self, user_id: &str, n: Option<usize>) -> Option<Recommendation> {
+        let model = self.model.lock().await;
         if let Some(ref m) = *model {
             let recommendation = m.recommend(user_id, n);
-            return Some(recommendation);
+            let client = self
+                .db
+                .as_ref()
+                .unwrap()
+                .lock()
+                .await
+                .get_client_by_id(user_id.to_string())
+                .await
+                .unwrap();
+            let products = join_all(recommendation.into_iter().map(|id| {
+                let db = self.db.as_ref().unwrap().clone();
+                async move { db.lock().await.get_product_by_id(id).await }
+            }))
+            .await
+            .into_iter()
+            .filter_map(Result::ok)
+            .collect::<Vec<_>>();
+
+            return Some(Recommendation { client, products });
         } else {
             return None;
         }
     }
 
-    pub fn get_metadata(&self) -> MetadataModel {
-        let model = self.model.lock().unwrap();
+    pub async fn get_metadata(&self) -> MetadataModel {
+        let model = self.model.lock().await;
         if let Some(ref m) = *model {
             MetadataModel {
                 num_factors: m.num_factors,
@@ -205,7 +232,7 @@ impl ModelServer {
                                     sleep(Duration::from_millis(500)).await;
                                     match load_json_data_from_file(&hyperparameters_path) {
                                         Ok(json_data) => {
-                                            let mut model = model.lock().unwrap();
+                                            let mut model = model.lock().await;
                                             *model = Some(ALS::new(
                                                 json_data.hyperparameters.num_factors,
                                                 json_data.hyperparameters.regularization,

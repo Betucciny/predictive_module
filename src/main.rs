@@ -11,7 +11,7 @@ pub mod models;
 pub mod services;
 
 lazy_static::lazy_static! {
-    pub static ref MODEL_SERVER: Arc<Mutex<ModelServer>> = ModelServer::new("./data/hyperparameters.json");
+    pub static ref MODEL_SERVER: Arc<Mutex<Option<ModelServer>>> = ModelServer::new("./data/hyperparameters.json");
 }
 
 #[tokio::main]
@@ -32,10 +32,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     };
 
-    {
-        let mut model_server_lock = MODEL_SERVER.lock().await;
-        model_server_lock.initialize(notify.clone()).await.unwrap();
-    }
+    MODEL_SERVER
+        .lock()
+        .await
+        .as_mut()
+        .unwrap()
+        .initialize(notify.clone())
+        .await
+        .unwrap();
 
     // Create the Warp filters
     let routes = global_handler();

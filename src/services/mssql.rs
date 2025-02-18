@@ -246,4 +246,52 @@ impl DatabaseTrait for SqlServerDatabase {
             products,
         })
     }
+
+    async fn get_client_by_id(
+        &mut self,
+        id: String,
+    ) -> Result<ClientRow, Box<dyn std::error::Error>> {
+        let table_client = env::var("TABLE_CLIENT").expect("TABLE_CLIENT is not set");
+        let query = format!(
+            "SELECT CLAVE as id, NOMBRE as name, EMAILPRED as email
+             FROM dbo.{}
+             WHERE CLAVE = '{}';",
+            table_client, id
+        );
+        let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
+        let row = result.try_next().await?.unwrap().into_row().unwrap();
+        let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
+        let name: String = row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
+        let email: String = row.get::<&str, _>(2).unwrap_or("unknown_email").to_string();
+        Ok(ClientRow { id, name, email })
+    }
+
+    async fn get_product_by_id(
+        &mut self,
+        id: String,
+    ) -> Result<ProductRow, Box<dyn std::error::Error>> {
+        let table_inve = env::var("TABLE_INVE").expect("TABLE_INVE is not set");
+        let query = format!(
+            "SELECT CVE_ART as id, DESCR as description, ULT_COSTO as price
+             FROM dbo.{}
+             WHERE CVE_ART = '{}';",
+            table_inve, id
+        );
+        let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
+        let row = result.try_next().await?.unwrap().into_row().unwrap();
+        let id: String = row
+            .get::<&str, _>(0)
+            .unwrap_or("unknown_product")
+            .to_string();
+        let description: String = row
+            .get::<&str, _>(1)
+            .unwrap_or("unknown_product")
+            .to_string();
+        let price: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
+        Ok(ProductRow {
+            id,
+            description,
+            price,
+        })
+    }
 }

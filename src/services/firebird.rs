@@ -206,4 +206,43 @@ impl DatabaseTrait for FirebirdDatabase {
             products,
         })
     }
+    async fn get_client_by_id(
+        &mut self,
+        id: String,
+    ) -> Result<ClientRow, Box<dyn std::error::Error>> {
+        let table_client = env::var("TABLE_CLIENT").expect("TABLE_CLIENT is not set");
+        let query = format!(
+            "SELECT CLAVE as id, NOMBRE as name, EMAILPRED as email
+            FROM {}
+            WHERE CLAVE = '{}';",
+            table_client, id
+        );
+        let row = self.conn.as_mut().unwrap().query_first(&query, ())?;
+        let (id, name, email): (String, String, Option<String>) = row.unwrap();
+        Ok(ClientRow {
+            id,
+            name,
+            email: email.unwrap_or("unknown_email".to_string()),
+        })
+    }
+
+    async fn get_product_by_id(
+        &mut self,
+        id: String,
+    ) -> Result<ProductRow, Box<dyn std::error::Error>> {
+        let table_inve = env::var("TABLE_INVE").expect("TABLE_INVE is not set");
+        let query = format!(
+            "SELECT CVE_ART as id, DESCR as description, ULT_COSTO as price
+            FROM {}
+            WHERE CVE_ART = '{}';",
+            table_inve, id
+        );
+        let row = self.conn.as_mut().unwrap().query_first(&query, ())?;
+        let (id, description, price): (String, String, f64) = row.unwrap();
+        Ok(ProductRow {
+            id,
+            description,
+            price,
+        })
+    }
 }

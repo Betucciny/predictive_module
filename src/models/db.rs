@@ -49,6 +49,15 @@ pub trait DatabaseTrait {
         search: String,
         page: i64,
     ) -> Result<ProductPage, Box<dyn std::error::Error>>;
+
+    async fn get_client_by_id(
+        &mut self,
+        id: String,
+    ) -> Result<ClientRow, Box<dyn std::error::Error>>;
+    async fn get_product_by_id(
+        &mut self,
+        id: String,
+    ) -> Result<ProductRow, Box<dyn std::error::Error>>;
 }
 
 pub struct Database {
@@ -107,6 +116,22 @@ impl Database {
             .get_products(search, page)
             .await
             .map_err(|e| DatabaseError::ConnectionError(format!("Error getting products: {}", e)))
+    }
+
+    pub async fn get_client_by_id(&mut self, id: String) -> Result<ClientRow, DatabaseError> {
+        let mut backend = self.backend.lock().await;
+        backend
+            .get_client_by_id(id)
+            .await
+            .map_err(|e| DatabaseError::ConnectionError(format!("Error getting client: {}", e)))
+    }
+
+    pub async fn get_product_by_id(&mut self, id: String) -> Result<ProductRow, DatabaseError> {
+        let mut backend = self.backend.lock().await;
+        backend
+            .get_product_by_id(id)
+            .await
+            .map_err(|e| DatabaseError::ConnectionError(format!("Error getting product: {}", e)))
     }
 
     pub async fn close(&mut self) -> Result<(), DatabaseError> {
