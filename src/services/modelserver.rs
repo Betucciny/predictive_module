@@ -176,6 +176,30 @@ impl ModelServer {
         }
     }
 
+    pub async fn get_client_by_id(&self, client_id: String) -> Result<ClientRow, DatabaseError> {
+        if let Some(ref db) = self.db {
+            let mut db = db.lock().await;
+            let client = db.get_client_by_id(client_id).await;
+            client
+        } else {
+            Err(DatabaseError::ConnectionError(
+                "Database not initialized".to_string(),
+            ))
+        }
+    }
+
+    pub async fn get_product_by_id(&self, product_id: String) -> Result<ProductRow, DatabaseError> {
+        if let Some(ref db) = self.db {
+            let mut db = db.lock().await;
+            let product = db.get_product_by_id(product_id).await;
+            product
+        } else {
+            Err(DatabaseError::ConnectionError(
+                "Database not initialized".to_string(),
+            ))
+        }
+    }
+
     fn start_file_watcher(&self) {
         let hyperparameters_path = self.hyperparameters_file.clone();
         let hyperparameters_dir = Path::new(&hyperparameters_path)

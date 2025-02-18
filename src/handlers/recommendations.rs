@@ -9,6 +9,8 @@ pub fn global_handler(
         .or(metadata_handler())
         .or(clients_handler())
         .or(products_handler())
+        .or(get_client_by_id())
+        .or(get_product_by_id())
 }
 
 fn metadata_handler(
@@ -111,7 +113,6 @@ fn get_recommendation_with_limit(
 ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::path("recommend")
         .and(warp::path::param::<String>())
-        // .and(warp::path("limit"))
         .and(warp::path::param::<i64>())
         .and_then(|client_id: String, limit: i64| async move {
             println!(
@@ -130,6 +131,56 @@ fn get_recommendation_with_limit(
             {
                 Some(recommendations) => Ok(warp::reply::json(&recommendations)),
                 None => Err(warp::reject::not_found()),
+            }
+        })
+}
+
+fn get_client_by_id(
+) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::path("client")
+        .and(warp::path::param::<String>())
+        .and_then(|client_id: String| async move {
+            println!("Received request for client_id: {}", client_id);
+            let decoded_client_id = percent_decode_str(&client_id)
+                .decode_utf8_lossy()
+                .to_string();
+            let model_server = MODEL_SERVER.lock().await;
+            match model_server
+                .as_ref()
+                .unwrap()
+                .get_client_by_id(decoded_client_id)
+                .await
+            {
+                Ok(client) => Ok(warp::reply::json(&client)),
+                Err(e) => {
+                    eprintln!("Error getting products: {:?}", e);
+                    Err(warp::reject::not_found())
+                }
+            }
+        })
+}
+
+fn get_product_by_id(
+) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::path("product")
+        .and(warp::path::param::<String>())
+        .and_then(|product_id: String| async move {
+            println!("Received request for product_id: {}", product_id);
+            let decoded_product_id = percent_decode_str(&product_id)
+                .decode_utf8_lossy()
+                .to_string();
+            let model_server = MODEL_SERVER.lock().await;
+            match model_server
+                .as_ref()
+                .unwrap()
+                .get_product_by_id(decoded_product_id)
+                .await
+            {
+                Ok(product) => Ok(warp::reply::json(&product)),
+                Err(e) => {
+                    eprintln!("Error getting product: {:?}", e);
+                    Err(warp::reject::not_found())
+                }
             }
         })
 }
