@@ -258,17 +258,21 @@ impl DatabaseTrait for SqlServerDatabase {
              WHERE CLAVE = '{}';",
             table_client, id
         );
-        println!("Executing query: {}", query);
-        let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
-        let row = result
+        let client = self.client.as_mut().unwrap();
+        let client_row = client
+            .query(query, &[])
+            .await?
             .try_next()
             .await?
             .and_then(|row| row.into_row())
-            .unwrap();
-        let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
-        let name: String = row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
-        let email: String = row.get::<&str, _>(2).unwrap_or("unknown_email").to_string();
-        Ok(ClientRow { id, name, email })
+            .map(|row| {
+                let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
+                let name: String = row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
+                let email: String = row.get::<&str, _>(2).unwrap_or("unknown_email").to_string();
+                ClientRow { id, name, email }
+            })
+            .ok_or_else(|| "Client not found".into());
+        client_row
     }
 
     async fn get_product_by_id(
@@ -282,25 +286,25 @@ impl DatabaseTrait for SqlServerDatabase {
              WHERE CVE_ART = '{}';",
             table_inve, id
         );
-        let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
-        let row = result
+        let client = self.client.as_mut().unwrap();
+        let client_row = client
+            .query(query, &[])
+            .await?
             .try_next()
             .await?
             .and_then(|row| row.into_row())
-            .unwrap();
-        let id: String = row
-            .get::<&str, _>(0)
-            .unwrap_or("unknown_product")
-            .to_string();
-        let description: String = row
-            .get::<&str, _>(1)
-            .unwrap_or("unknown_product")
-            .to_string();
-        let price: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
-        Ok(ProductRow {
-            id,
-            description,
-            price,
-        })
+            .map(|row| {
+                let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
+                let description: String =
+                    row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
+                let price: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
+                ProductRow {
+                    id,
+                    description,
+                    price,
+                }
+            })
+            .ok_or_else(|| "Client not found".into());
+        client_row
     }
 }
