@@ -259,7 +259,11 @@ impl DatabaseTrait for SqlServerDatabase {
             table_client, id
         );
         let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
-        let row = result.try_next().await?.unwrap().into_row().unwrap();
+        let row = result
+            .try_next()
+            .await?
+            .and_then(|row| row.into_row())
+            .unwrap();
         let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
         let name: String = row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
         let email: String = row.get::<&str, _>(2).unwrap_or("unknown_email").to_string();
@@ -278,7 +282,11 @@ impl DatabaseTrait for SqlServerDatabase {
             table_inve, id
         );
         let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
-        let row = result.try_next().await?.unwrap().into_row().unwrap();
+        let row = result
+            .try_next()
+            .await?
+            .and_then(|row| row.into_row())
+            .unwrap();
         let id: String = row
             .get::<&str, _>(0)
             .unwrap_or("unknown_product")
