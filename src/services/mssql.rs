@@ -166,14 +166,9 @@ impl DatabaseTrait for SqlServerDatabase {
         };
 
         let total_pages = {
-            let mut result = client.query(query2, &[]).await?;
-            if let Some(item) = result.try_next().await? {
-                let row = item.into_row().unwrap();
-                println!("{:?}", row);
-                row.get::<i64, _>(0).unwrap_or(0)
-            } else {
-                0
-            }
+            let result = client.query(query2, &[]).await?;
+            let row = result.into_row().await?.unwrap();
+            row.get::<i64, _>(0).unwrap_or(0)
         };
 
         Ok(ClientPage {
@@ -234,14 +229,11 @@ impl DatabaseTrait for SqlServerDatabase {
             products
         };
 
-        let total_pages = client
-            .query(query2, &[])
-            .await?
-            .try_next()
-            .await?
-            .and_then(|row| row.into_row())
-            .and_then(|row| row.get::<i64, _>(0))
-            .unwrap_or(0);
+        let total_pages = {
+            let result = client.query(query2, &[]).await?;
+            let row = result.into_row().await?.unwrap();
+            row.get::<i64, _>(0).unwrap_or(0)
+        };
 
         Ok(ProductPage {
             current_page: page,
@@ -265,16 +257,12 @@ impl DatabaseTrait for SqlServerDatabase {
         let client_row = client
             .query(query, &[])
             .await?
-            .try_next()
+            .into_row()
             .await?
-            .and_then(|row| row.into_row())
             .map(|row| {
                 let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
-                println!("Client ID: {}", id);
                 let name: String = row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
-                println!("Client Name: {}", name);
                 let email: String = row.get::<&str, _>(2).unwrap_or("unknown_email").to_string();
-                println!("Client Email: {}", email);
                 ClientRow { id, name, email }
             })
             .ok_or_else(|| "Client not found".into());
@@ -296,9 +284,8 @@ impl DatabaseTrait for SqlServerDatabase {
         let client_row = client
             .query(query, &[])
             .await?
-            .try_next()
+            .into_row()
             .await?
-            .and_then(|row| row.into_row())
             .map(|row| {
                 let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
                 let description: String =
