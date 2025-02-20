@@ -124,7 +124,7 @@ impl DatabaseTrait for FirebirdDatabase {
         );
 
         let query2 = format!(
-            "SELECT COUNT(*)/10 as total_pages
+            "SELECT (COUNT(*)-1)/10 +1 as total_pages
              FROM {}
              WHERE NOMBRE LIKE '%{}%'
              AND NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}",
