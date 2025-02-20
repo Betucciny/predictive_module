@@ -267,8 +267,11 @@ impl DatabaseTrait for SqlServerDatabase {
             .and_then(|row| row.into_row())
             .map(|row| {
                 let id: String = row.get::<&str, _>(0).unwrap_or("unknown_id").to_string();
+                println!("Client ID: {}", id);
                 let name: String = row.get::<&str, _>(1).unwrap_or("unknown_name").to_string();
+                println!("Client Name: {}", name);
                 let email: String = row.get::<&str, _>(2).unwrap_or("unknown_email").to_string();
+                println!("Client Email: {}", email);
                 ClientRow { id, name, email }
             })
             .ok_or_else(|| "Client not found".into());
