@@ -168,12 +168,12 @@ impl DatabaseTrait for SqlServerDatabase {
         let total_pages = {
             let result = client.query(query2, &[]).await?;
             let row = result.into_row().await?.unwrap();
-            row.get::<i64, _>(0).unwrap_or(0)
+            row.get::<i32, _>(0).unwrap_or(0)
         };
 
         Ok(ClientPage {
             current_page: page,
-            total_pages,
+            total_pages: total_pages as i64,
             clients,
         })
     }
@@ -232,12 +232,12 @@ impl DatabaseTrait for SqlServerDatabase {
         let total_pages = {
             let result = client.query(query2, &[]).await?;
             let row = result.into_row().await?.unwrap();
-            row.get::<i64, _>(0).unwrap_or(0)
+            row.get::<i32, _>(0).unwrap_or(0)
         };
 
         Ok(ProductPage {
             current_page: page,
-            total_pages,
+            total_pages: total_pages as i64,
             products,
         })
     }
