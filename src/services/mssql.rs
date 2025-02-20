@@ -169,11 +169,7 @@ impl DatabaseTrait for SqlServerDatabase {
             let mut result = client.query(query2, &[]).await?;
             if let Some(item) = result.try_next().await? {
                 if let Some(row) = item.into_row() {
-                    let total_pages: i64 = row
-                        .get::<&str, _>(0)
-                        .unwrap_or("unknown_total_pages")
-                        .parse::<i64>()
-                        .unwrap_or(0);
+                    let total_pages: i64 = row.get::<i64, _>(0).unwrap_or(0);
                     total_pages
                 } else {
                     0
