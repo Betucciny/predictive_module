@@ -81,7 +81,6 @@ impl DatabaseTrait for SqlServerDatabase {
 
         while let Some(item) = result.try_next().await? {
             if let Some(row) = item.into_row() {
-                println!("{:?}", row);
                 let client_id: String = row
                     .get::<&str, _>(0)
                     .unwrap_or("unknown_client")
@@ -170,6 +169,7 @@ impl DatabaseTrait for SqlServerDatabase {
             let mut result = client.query(query2, &[]).await?;
             if let Some(item) = result.try_next().await? {
                 let row = item.into_row().unwrap();
+                println!("{:?}", row);
                 row.get::<i64, _>(0).unwrap_or(0)
             } else {
                 0
