@@ -139,7 +139,7 @@ impl DatabaseTrait for SqlServerDatabase {
         );
 
         let query2 = format!(
-            "SELECT (COUNT(*)-1)/10 +1 as total_pages
+            "SELECT (COUNT(*)-1)/10+1 as total_pages
              FROM dbo.{}
              WHERE NOMBRE LIKE '%{}%'
              AND NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}",
@@ -199,7 +199,7 @@ impl DatabaseTrait for SqlServerDatabase {
         );
 
         let query2 = format!(
-            "SELECT COUNT(*)/10 as total_pages
+            "SELECT (COUNT(*)-1)/10+1 as total_pages
                 FROM dbo.{}
                 WHERE DESCR LIKE '%{}%';",
             table_inve, search,

@@ -176,7 +176,7 @@ impl DatabaseTrait for FirebirdDatabase {
             page * 10,
         );
         let query2 = format!(
-            "SELECT COUNT(*)/10 as total_pages
+            "SELECT (COUNT(*)-1)/10+1 as total_pages
              FROM {}
              WHERE DESCR LIKE '%{}%'",
             table_inve, search,
