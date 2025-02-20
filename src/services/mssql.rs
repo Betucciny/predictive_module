@@ -258,6 +258,7 @@ impl DatabaseTrait for SqlServerDatabase {
              WHERE CLAVE = '{}';",
             table_client, id
         );
+        println!("Executing query: {}", query);
         let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
         let row = result
             .try_next()
