@@ -164,14 +164,24 @@ impl DatabaseTrait for SqlServerDatabase {
             }
             clients
         };
-        let total_pages = client
-            .query(query2, &[])
-            .await?
-            .try_next()
-            .await?
-            .and_then(|row| row.into_row())
-            .and_then(|row| row.get::<i64, _>(0))
-            .unwrap_or(0);
+
+        let total_pages = {
+            let mut result = client.query(query2, &[]).await?;
+            if let Some(item) = result.try_next().await? {
+                if let Some(row) = item.into_row() {
+                    let total_pages: i64 = row
+                        .get::<&str, _>(0)
+                        .unwrap_or("unknown_total_pages")
+                        .parse::<i64>()
+                        .unwrap_or(0);
+                    total_pages
+                } else {
+                    0
+                }
+            } else {
+                0
+            }
+        };
 
         Ok(ClientPage {
             current_page: page,
