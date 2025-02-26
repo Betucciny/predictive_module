@@ -77,7 +77,7 @@ impl DatabaseTrait for SqlServerDatabase {
                 );
 
         let query_clients = format!(
-            "SELECT F.CVE_CLPV AS CLIENT_ID
+            "SELECT C.CVE_CLPV AS CLIENT_ID
              FROM dbo.{} AS C;",
             table_client
         );
