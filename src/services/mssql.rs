@@ -76,24 +76,69 @@ impl DatabaseTrait for SqlServerDatabase {
                     table_par_fact, table_inve, table_client, table_fact, excluded_clients_clause
                 );
 
-        let mut result = self.client.as_mut().unwrap().query(query, &[]).await?;
-        let mut matrix: ClientProductMatrix = HashMap::new();
+        let query_clients = format!(
+            "SELECT F.CVE_CLPV AS CLIENT_ID
+             FROM dbo.{} AS C;",
+            table_client
+        );
 
-        while let Some(item) = result.try_next().await? {
-            if let Some(row) = item.into_row() {
-                let client_id: String = row
-                    .get::<&str, _>(0)
-                    .unwrap_or("unknown_client")
-                    .to_string();
-                let product_id: String = row
-                    .get::<&str, _>(1)
-                    .unwrap_or("unknown_product")
-                    .to_string();
-                let total_quantity: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
-                matrix
-                    .entry(client_id)
-                    .or_insert_with(HashMap::new)
-                    .insert(product_id, total_quantity);
+        let query_products = format!(
+            "SELECT I.CVE_ART AS PRODUCT_ID
+             FROM dbo.{} AS I;",
+            table_inve
+        );
+
+        let client = self.client.as_mut().unwrap();
+
+        let mut matrix: ClientProductMatrix = {
+            let mut result = client.query(query, &[]).await?;
+            let mut matrix = HashMap::new();
+
+            while let Some(item) = result.try_next().await? {
+                if let Some(row) = item.into_row() {
+                    let client_id: String = row
+                        .get::<&str, _>(0)
+                        .unwrap_or("unknown_client")
+                        .to_string();
+                    let product_id: String = row
+                        .get::<&str, _>(1)
+                        .unwrap_or("unknown_product")
+                        .to_string();
+                    let total_quantity: f64 = row.get::<f64, _>(2).unwrap_or(0.0);
+                    matrix
+                        .entry(client_id)
+                        .or_insert_with(HashMap::new)
+                        .insert(product_id, total_quantity);
+                }
+            }
+            matrix
+        };
+
+        {
+            let mut result_clients = client.query(query_clients, &[]).await?;
+            while let Some(item) = result_clients.try_next().await? {
+                if let Some(row) = item.into_row() {
+                    let client_id: String = row
+                        .get::<&str, _>(0)
+                        .unwrap_or("unknown_client")
+                        .to_string();
+                    matrix.entry(client_id).or_insert_with(HashMap::new);
+                }
+            }
+        }
+
+        {
+            let mut result_products = client.query(query_products, &[]).await?;
+            while let Some(item) = result_products.try_next().await? {
+                if let Some(row) = item.into_row() {
+                    let product_id: String = row
+                        .get::<&str, _>(0)
+                        .unwrap_or("unknown_product")
+                        .to_string();
+                    if let Some(client_products) = matrix.values_mut().next() {
+                        client_products.entry(product_id.clone()).or_insert(0.0);
+                    }
+                }
             }
         }
 

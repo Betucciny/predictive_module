@@ -71,15 +71,50 @@ impl DatabaseTrait for FirebirdDatabase {
                     table_par_fact, table_inve, table_client, table_fact, excluded_clients_clause
                 );
 
-        let mut matrix: ClientProductMatrix = HashMap::new();
-        let rows = self.conn.as_mut().unwrap().query_iter(&sql, ())?;
+        let query_clients = format!(
+            "SELECT CLAVE AS CLIENT_ID
+                     FROM {};",
+            table_client
+        );
 
-        for row in rows {
-            let (client_id, product_id, total_quantity): (String, String, f64) = row?;
+        let query_products = format!(
+            "SELECT CVE_ART AS PRODUCT_ID
+                     FROM {};",
+            table_inve
+        );
+
+        let mut matrix: ClientProductMatrix = {
+            let mut matrix = HashMap::new();
+            let rows = self.conn.as_mut().unwrap().query_iter(&sql, ())?;
+
+            for row in rows {
+                let (client_id, product_id, total_quantity): (String, String, f64) = row?;
+                matrix
+                    .entry(client_id)
+                    .or_insert_with(HashMap::new)
+                    .insert(product_id, total_quantity);
+            }
             matrix
-                .entry(client_id)
-                .or_insert_with(HashMap::new)
-                .insert(product_id, total_quantity);
+        };
+        {
+            let rows = self.conn.as_mut().unwrap().query_iter(&query_clients, ())?;
+            for row in rows {
+                let (client_id,): (String,) = row?;
+                matrix.entry(client_id).or_insert_with(HashMap::new);
+            }
+        }
+        {
+            let rows = self
+                .conn
+                .as_mut()
+                .unwrap()
+                .query_iter(&query_products, ())?;
+            for row in rows {
+                let (product_id,): (String,) = row?;
+                if let Some(client_products) = matrix.values_mut().next() {
+                    client_products.entry(product_id.clone()).or_insert(0.0);
+                }
+            }
         }
 
         Ok(matrix)
