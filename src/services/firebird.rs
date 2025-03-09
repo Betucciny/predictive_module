@@ -67,6 +67,7 @@ impl DatabaseTrait for FirebirdDatabase {
                      INNER JOIN {} AS C INNER JOIN {} AS F ON C.CLAVE = F.CVE_CLPV
                      ON PF.CVE_DOC = F.CVE_DOC WHERE F.STATUS <> 'C'
                      AND C.NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}
+                     AND I.STATUS = 'A'
                      GROUP BY F.CVE_CLPV, PF.CVE_ART;",
                     table_par_fact, table_inve, table_client, table_fact, excluded_clients_clause
                 );
@@ -79,7 +80,8 @@ impl DatabaseTrait for FirebirdDatabase {
 
         let query_products = format!(
             "SELECT CVE_ART AS PRODUCT_ID
-                     FROM {};",
+                     FROM {} as I
+                     AND I.STATUS = 'A';",
             table_inve
         );
 
@@ -201,8 +203,9 @@ impl DatabaseTrait for FirebirdDatabase {
 
         let query1 = format!(
             "SELECT CVE_ART as id, DESCR as description, ULT_COSTO as price
-            FROM {}
+            FROM {} as I
             WHERE DESCR LIKE '%{}%'
+            AND I.STATUS = 'A'
             ORDER BY id
             ROWS {} TO {};",
             table_inve,
@@ -212,8 +215,9 @@ impl DatabaseTrait for FirebirdDatabase {
         );
         let query2 = format!(
             "SELECT (COUNT(*)-1)/10+1 as total_pages
-             FROM {}
-             WHERE DESCR LIKE '%{}%'",
+             FROM {} as I
+             WHERE DESCR LIKE '%{}%'
+             AND I.STATUS = 'A'",
             table_inve, search,
         );
 

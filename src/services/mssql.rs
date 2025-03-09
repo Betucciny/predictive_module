@@ -72,6 +72,7 @@ impl DatabaseTrait for SqlServerDatabase {
                      INNER JOIN dbo.{} AS C INNER JOIN dbo.{} AS F ON C.CLAVE = F.CVE_CLPV
                      ON PF.CVE_DOC = F.CVE_DOC WHERE F.STATUS <> 'C'
                      AND C.NOMBRE NOT LIKE '%PUBLICO EN GENERAL%' {}
+                     AND I.STATUS = 'A'
                      GROUP BY F.CVE_CLPV, PF.CVE_ART;",
                     table_par_fact, table_inve, table_client, table_fact, excluded_clients_clause
                 );
@@ -84,7 +85,8 @@ impl DatabaseTrait for SqlServerDatabase {
 
         let query_products = format!(
             "SELECT I.CVE_ART AS PRODUCT_ID
-             FROM dbo.{} AS I;",
+             FROM dbo.{} AS I
+             WHERE I.STATUS = 'A';",
             table_inve
         );
 
@@ -231,8 +233,9 @@ impl DatabaseTrait for SqlServerDatabase {
 
         let query1 = format!(
             "SELECT CVE_ART as id, DESCR as description, ULT_COSTO as price
-                FROM dbo.{}
+                FROM dbo.{} as I
                 WHERE DESCR LIKE '%{}%'
+                AND I.STATUS = 'A'
                 ORDER BY CVE_ART
                 OFFSET {} ROWS
                 FETCH NEXT 10 ROWS ONLY;",
@@ -243,8 +246,9 @@ impl DatabaseTrait for SqlServerDatabase {
 
         let query2 = format!(
             "SELECT (COUNT(*)-1)/10+1 as total_pages
-                FROM dbo.{}
-                WHERE DESCR LIKE '%{}%';",
+                FROM dbo.{} as I
+                WHERE DESCR LIKE '%{}%'
+                AND I.STATUS = 'A';",
             table_inve, search,
         );
 
