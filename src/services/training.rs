@@ -102,11 +102,14 @@ pub async fn find_best_als_model(
 
             let processed = processed_counter.fetch_add(1, Ordering::SeqCst) + 1;
             println!(
-                "Processed {}/{} combinations EPR: {:.2}% ({:.2}%)",
+                "Processed {}/{} combinations EPR: {:.2}% ({:.2}%) | Metadata: num_factors: {}, regularization: {}, confidence_multiplier: {}",
                 processed,
                 total_combinations,
                 epr * 100.0,
-                (processed as f64 / total_combinations as f64) * 100.0
+                (processed as f64 / total_combinations as f64) * 100.0,
+                hyperparameters.num_factors,
+                hyperparameters.regularization,
+                hyperparameters.confidence_multiplier
             );
 
             let product_factors: Vec<Vec<f64>> = als
