@@ -77,22 +77,9 @@ impl DatabaseTrait for SqlServerDatabase {
                     table_par_fact, table_inve, table_client, table_fact, excluded_clients_clause
                 );
 
-        let query_clients = format!(
-            "SELECT C.CLAVE AS CLIENT_ID
-             FROM dbo.{} AS C;",
-            table_client
-        );
-
-        let query_products = format!(
-            "SELECT I.CVE_ART AS PRODUCT_ID
-             FROM dbo.{} AS I
-             WHERE I.STATUS = 'A';",
-            table_inve
-        );
-
         let client = self.client.as_mut().unwrap();
 
-        let mut matrix: ClientProductMatrix = {
+        let matrix: ClientProductMatrix = {
             let mut result = client.query(query, &[]).await?;
             let mut matrix = HashMap::new();
 
@@ -115,34 +102,6 @@ impl DatabaseTrait for SqlServerDatabase {
             }
             matrix
         };
-
-        {
-            let mut result_clients = client.query(query_clients, &[]).await?;
-            while let Some(item) = result_clients.try_next().await? {
-                if let Some(row) = item.into_row() {
-                    let client_id: String = row
-                        .get::<&str, _>(0)
-                        .unwrap_or("unknown_client")
-                        .to_string();
-                    matrix.entry(client_id).or_insert_with(HashMap::new);
-                }
-            }
-        }
-
-        {
-            let mut result_products = client.query(query_products, &[]).await?;
-            while let Some(item) = result_products.try_next().await? {
-                if let Some(row) = item.into_row() {
-                    let product_id: String = row
-                        .get::<&str, _>(0)
-                        .unwrap_or("unknown_product")
-                        .to_string();
-                    if let Some(client_products) = matrix.values_mut().next() {
-                        client_products.entry(product_id.clone()).or_insert(0.0);
-                    }
-                }
-            }
-        }
 
         Ok(matrix)
     }
